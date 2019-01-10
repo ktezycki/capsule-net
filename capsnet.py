@@ -100,7 +100,7 @@ class CapsNet(nn.Module):
             decoder_output = decoder_output.view(decoder_output.size()[0], -1)
             decoder_output = F.relu(self.fc1(decoder_output))
             decoder_output = F.relu(self.fc2(decoder_output))
-            decoder_output = F.sigmoid(self.fc3(decoder_output))
+            decoder_output = torch.sigmoid(self.fc3(decoder_output))
 
         x = x.norm(p=2, dim=2)
         x = F.softmax(x, dim=-1)
@@ -151,9 +151,9 @@ def idx_to_one_hot(vector, num_classes):
     return one_hot
 
 
-def prepare_input(data, target, is_test=False):
+def prepare_input(data, target):
     data, target = data.cuda() if args.cuda else data, target.cuda() if args.cuda else target
-    return Variable(data, volatile=is_test), Variable(idx_to_one_hot(target, 10)), target
+    return Variable(data), Variable(idx_to_one_hot(target, 10)), target
 
 
 def train(epoch):
@@ -173,8 +173,8 @@ def train(epoch):
         if batch_idx % args.log_interval == 0:
             print('Train Epoch: {} [{}/{} ({:.0f}%)]\tLoss: {:.6f}, batch accuracy {:.1f}%'.format(
                 epoch, batch_idx * len(data), len(train_loader.dataset),
-                       100. * batch_idx / len(train_loader), loss.data[0],
-                       100. * correct / ((args.log_interval if batch_idx != 0 else 1.) * len(target))))
+                       100. * batch_idx / len(train_loader), loss.data.item(),
+                       100. * correct.item() / ((args.log_interval if batch_idx != 0 else 1.) * len(target))))
             correct = 0
 
     lr_scheduler.step()
@@ -187,7 +187,7 @@ def test():
     iterations = 0
     for data, target in test_loader:
         iterations += 1
-        image, one_hot, target_index = prepare_input(data, target, is_test=True)
+        image, one_hot, target_index = prepare_input(data, target)
 
         digits_output, decoder_output = model(image, one_hot)
         loss = model.loss(digits_output, one_hot, decoder_output, image, is_mean=False)
@@ -204,7 +204,7 @@ def test():
 
     test_loss /= len(test_loader.dataset)
     print('\nTest set: Average loss: {:.4f}, Accuracy: {}/{} ({:.0f}%)\n'.format(
-        test_loss.data[0], correct, len(test_loader.dataset), (100. * float(correct) / len(test_loader.dataset))))
+        test_loss.data.item(), correct, len(test_loader.dataset), (100. * float(correct) / len(test_loader.dataset))))
 
 
 if __name__ == '__main__':
@@ -212,4 +212,5 @@ if __name__ == '__main__':
         os.mkdir(args.generated_images)
     for epoch in range(1, args.epochs + 1):
         train(epoch)
-        test()
+        with torch.no_grad():
+            test()
